@@ -1,0 +1,70 @@
+---
+title: "Exercise Type Prediction"
+output: html_document
+---
+
+This analysis is done to predict the manner in which exercise was done based on results from accelerometers worn by test subjects.  The data for this project come from: http://groupware.les.inf.puc-rio.br/har.  The value to be predicted is "classe". The five values for "classe" correspond to sitting-down, standing-up, standing, walking, and sitting.
+
+Load the source files
+
+```{r}
+#trainUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+#testUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+#download.file(trainUrl,destfile="data/pml-train.csv")
+#download.file(testUrl,destfile="data/pml-test.csv")
+train <- read.csv("data/pml-train.csv")
+test <- read.csv("data/pml-test.csv")
+```
+
+Remove columns that are empty in the test set. As the goal is to predict on the test set, using the assumption that the best covariates are the ones that are populated on the test data. Also remove columns for id and time before fitting the model.  
+
+```{r}
+set.seed(323)
+library(caret)
+new_test <- test[, colSums(is.na(test)) == 0]
+sub<-subset(train,,names(new_test)[8:59])
+retrain<-cbind(sub,classe=train$classe)
+```
+
+Separate out a cross validation dataset from the provided training dataset
+
+```{r}
+intrain <- createDataPartition(train$classe,p=.8,list=FALSE)
+train <- retrain[intrain,]
+cv <- retrain[-intrain,]
+```
+
+Validate the fit for a regression tree model.
+
+```{r}
+modFit <- train(classe ~ .,method="rpart",data=train)
+pred<-predict(modFit,train)  
+sum(pred==train$classe)/nrow(train) 
+pred<-predict(modFit,newdata=cv)
+sum(pred==cv$classe)/nrow(cv)  
+```
+
+The correct predictions for this model were only 50% for training data and 49% for cross validation dataset.  
+
+Try a different model to get an improved fit.  Validate the fit for a boosted model.
+
+```{r, results="hide",warning=FALSE}
+modFit <- train(classe ~ .,method="gbm",data=train,verbose=TRUE)
+```
+```{r}
+pred<-predict(modFit,train) 
+sum(pred==train$classe)/nrow(train) 
+pred<-predict(modFit,newdata=cv)
+sum(pred==cv$classe)/nrow(cv)  
+```
+
+The resultant percent of correct predictions is much improved, with 97% correct on both training and cross validation.  
+
+Use the better fit from the boosted model to predict for the test data.
+
+```{r}
+predict(modFit,newdata=new_test)
+```
+
+Results on the test data set were submitted on coursera for grading and verified to be 100% correct.
+
